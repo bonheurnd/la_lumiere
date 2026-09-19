@@ -1,0 +1,6 @@
+{
+  "name": "La Lumiere Choir",
+  "description": "Digital hymn/songbook, audio library, choir community, and Mobile Money support platform for La Lumiere Choir, ADEPR Nyanza, Kicukiro District, Rwanda.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
