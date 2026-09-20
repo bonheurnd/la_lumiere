@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ChoirLogo } from './ChoirLogo';
-import { X, Mail, Lock, User, Phone, LogIn, Sparkles } from 'lucide-react';
+import { X, Mail, Lock, User, Phone } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -35,23 +35,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       onClose();
     } catch (err: any) {
       setError(err.message || 'Ikibazo cyavutse mu kwinjira');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleQuickDemo = async (role: 'admin' | 'user') => {
-    setError('');
-    setIsLoading(true);
-    try {
-      if (role === 'admin') {
-        await login('admin@lalumierechoir.rw', 'AdminLumiere2026!');
-      } else {
-        await login('supporter@lalumierechoir.rw', 'LumiereSupporter2026!');
-      }
-      onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed demo login');
     } finally {
       setIsLoading(false);
     }
@@ -178,34 +161,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 bg-blue-950 hover:bg-blue-900 text-white font-extrabold rounded-xl shadow-md transition-transform active:scale-95 disabled:opacity-50 mt-2"
+            className="w-full py-3 bg-blue-950 hover:bg-blue-900 text-white font-extrabold rounded-xl shadow-md transition-transform active:scale-95 disabled:opacity-50 mt-2 cursor-pointer"
           >
             {isLoading ? 'Gutunganya...' : mode === 'login' ? 'Injira (Sign In)' : 'Komeza (Create Account)'}
           </button>
         </form>
 
-        {/* Quick Demo Access */}
-        <div className="pt-2 border-t border-slate-100 text-center space-y-1.5">
-          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center justify-center gap-1">
-            <Sparkles className="w-3 h-3 text-amber-500" />
-            <span>Kwinjira vuba (Quick One-Click Demo):</span>
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickDemo('admin')}
-              className="flex-1 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-lg text-[11px] font-bold border border-amber-200"
-            >
-              Demo Admin (Ubuyobozi)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickDemo('user')}
-              className="flex-1 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg text-[11px] font-bold border border-blue-200"
-            >
-              Demo Supporter
-            </button>
-          </div>
+        <div className="pt-2 border-t border-slate-100 text-center">
+          <p className="text-[11px] text-slate-500">
+            {mode === 'login'
+              ? 'Ntabwo uragira konti? Hitamo "Iyandikishe" hejuru.'
+              : 'Ufite konti? Hitamo "Injira" hejuru.'}
+          </p>
         </div>
       </div>
     </div>

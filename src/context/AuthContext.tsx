@@ -6,15 +6,19 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  adminLogin: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   logout: () => void;
   updateProfile: (data: { name?: string; phone?: string; avatar_url?: string }) => Promise<void>;
   deleteAccount: () => Promise<void>;
   refreshUser: () => Promise<void>;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const ADMIN_ROLES = ['super_admin', 'admin', 'content_admin', 'moderator'];
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -59,6 +63,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data.error || 'Login failed');
+    }
+
+    localStorage.setItem('lalumiere_token', data.token);
+    setToken(data.token);
+    setUser(data.user);
+  };
+
+  const adminLogin = async (email: string, password: string) => {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Admin login failed');
     }
 
     localStorage.setItem('lalumiere_token', data.token);
@@ -130,6 +151,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const isAdmin = Boolean(user?.role && ADMIN_ROLES.includes(user.role));
+  const isSuperAdmin = Boolean(user?.role === 'super_admin' || user?.role === 'admin');
+
   return (
     <AuthContext.Provider
       value={{
@@ -137,12 +161,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         isLoading,
         login,
+        adminLogin,
         register,
         logout,
         updateProfile,
         deleteAccount,
         refreshUser,
-        isAdmin: user?.role === 'admin',
+        isAdmin,
+        isSuperAdmin,
       }}
     >
       {children}

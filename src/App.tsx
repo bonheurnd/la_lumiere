@@ -112,6 +112,7 @@ function AppContent() {
             {activeTab === 'admin' && (
               <AdminDashboard
                 onSelectSong={handleSelectSong}
+                onNavigateHome={() => handleNavigateToTab('home')}
               />
             )}
           </>

@@ -231,6 +231,80 @@ export function initDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- 18. Images & Media Library
+    CREATE TABLE IF NOT EXISTS images (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'general', -- 'song_cover', 'choir_photo', 'event_image', 'logo', 'general'
+      file_url TEXT NOT NULL,
+      file_size_bytes INTEGER DEFAULT 0,
+      mime_type TEXT,
+      original_filename TEXT,
+      width INTEGER,
+      height INTEGER,
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      is_deleted INTEGER DEFAULT 0
+    );
+
+    -- 19. Events
+    CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      event_date TEXT NOT NULL,
+      location TEXT,
+      image_url TEXT,
+      status TEXT NOT NULL DEFAULT 'published', -- 'draft', 'published'
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      is_deleted INTEGER DEFAULT 0
+    );
+
+    -- 20. Documents & PDFs
+    CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      file_url TEXT NOT NULL,
+      file_size_bytes INTEGER DEFAULT 0,
+      category TEXT DEFAULT 'sheet_music', -- 'sheet_music', 'rehearsal_guide', 'program', 'bulletin'
+      status TEXT NOT NULL DEFAULT 'published', -- 'draft', 'published'
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      is_deleted INTEGER DEFAULT 0
+    );
+
+    -- 21. Content Articles (Choir news, devotional messages, videos, important notices)
+    CREATE TABLE IF NOT EXISTS content_articles (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL, -- 'choir_news', 'devotional', 'video', 'notice'
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      media_url TEXT,
+      published_date TEXT,
+      status TEXT NOT NULL DEFAULT 'published', -- 'draft', 'published'
+      created_by TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      is_deleted INTEGER DEFAULT 0
+    );
+
+    -- 22. Activity Logs
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      user_name TEXT,
+      user_role TEXT,
+      action TEXT NOT NULL,
+      resource TEXT NOT NULL,
+      resource_id TEXT,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     -- Indexes for high performance
     CREATE INDEX IF NOT EXISTS idx_songs_status ON songs(release_status);
     CREATE INDEX IF NOT EXISTS idx_songs_category ON songs(category_id);
@@ -240,17 +314,47 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_transactions_user ON payment_transactions(user_id);
   `);
 
+  // Safe migrations for table alterations
+  function safeAddColumn(table: string, columnDef: string) {
+    try {
+      db.prepare(`ALTER TABLE ${table} ADD COLUMN ${columnDef}`).run();
+    } catch (e) {
+      // Column exists
+    }
+  }
+
+  safeAddColumn('users', 'is_disabled INTEGER DEFAULT 0');
+  safeAddColumn('songs', "status TEXT DEFAULT 'published'");
+  safeAddColumn('songs', 'is_deleted INTEGER DEFAULT 0');
+  safeAddColumn('songs', 'deleted_at DATETIME');
+  safeAddColumn('songs', 'created_by TEXT');
+  safeAddColumn('audio_tracks', 'file_size_bytes INTEGER DEFAULT 0');
+  safeAddColumn('audio_tracks', 'mime_type TEXT');
+  safeAddColumn('audio_tracks', 'original_filename TEXT');
+  safeAddColumn('audio_tracks', 'created_by TEXT');
+  safeAddColumn('audio_tracks', 'is_deleted INTEGER DEFAULT 0');
+  safeAddColumn('announcements', 'image_url TEXT');
+  safeAddColumn('announcements', "status TEXT DEFAULT 'published'");
+  safeAddColumn('announcements', 'created_by TEXT');
+  safeAddColumn('announcements', 'updated_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  safeAddColumn('announcements', 'is_deleted INTEGER DEFAULT 0');
+  safeAddColumn('comments', 'is_deleted INTEGER DEFAULT 0');
+
   // Seed default roles
   const insertRole = db.prepare(`
     INSERT OR IGNORE INTO roles (id, name, description)
     VALUES (?, ?, ?)
   `);
-  insertRole.run('admin', 'Administrator', 'Full administrative control over songs, branding, payments and users');
+  insertRole.run('super_admin', 'Super Admin', 'Full administrative control over songs, media, branding, payments, users, and roles');
+  insertRole.run('content_admin', 'Content Admin', 'Can add/edit songs, upload audio/images, and manage events, announcements and documents');
+  insertRole.run('moderator', 'Moderator', 'Can view, approve, hide, and delete user comments and report abusive users');
+  insertRole.run('normal_user', 'Normal User', 'Standard registered worshipper and listener');
+  insertRole.run('admin', 'Administrator', 'Full administrative control');
   insertRole.run('choir_member', 'Choir Member', 'La Lumiere Choir official member with access to rehearsal materials');
   insertRole.run('supporter', 'Supporter', 'Congregant, worshipper, and supporter');
 
-  // Seed initial Admin user if not exists
-  const existingAdmin = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@lalumierechoir.rw');
+  // Ensure default admin user has super_admin role
+  const existingAdmin = db.prepare('SELECT id, role FROM users WHERE email = ?').get('admin@lalumierechoir.rw') as any;
   if (!existingAdmin) {
     const defaultAdminHash = bcrypt.hashSync('LaLumiere@2026', 10);
     db.prepare(`
@@ -258,11 +362,64 @@ export function initDatabase() {
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(
       'usr_admin_default',
-      'Choir Administrator',
+      'Choir Super Admin',
       'admin@lalumierechoir.rw',
       defaultAdminHash,
       '+250788000000',
-      'admin'
+      'super_admin'
+    );
+  } else if (existingAdmin.role !== 'super_admin') {
+    db.prepare("UPDATE users SET role = 'super_admin' WHERE email = 'admin@lalumierechoir.rw'").run();
+  }
+
+  // Seed initial Content Admin for testing
+  const existingContentAdmin = db.prepare('SELECT id FROM users WHERE email = ?').get('content@lalumierechoir.rw');
+  if (!existingContentAdmin) {
+    const defaultContentHash = bcrypt.hashSync('Content@2026', 10);
+    db.prepare(`
+      INSERT INTO users (id, name, email, password_hash, phone, role)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      'usr_content_admin',
+      'Media Content Lead',
+      'content@lalumierechoir.rw',
+      defaultContentHash,
+      '+250788223344',
+      'content_admin'
+    );
+  }
+
+  // Seed initial Moderator for testing
+  const existingModerator = db.prepare('SELECT id FROM users WHERE email = ?').get('moderator@lalumierechoir.rw');
+  if (!existingModerator) {
+    const defaultModHash = bcrypt.hashSync('Moderator@2026', 10);
+    db.prepare(`
+      INSERT INTO users (id, name, email, password_hash, phone, role)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      'usr_moderator',
+      'Choir Moderator',
+      'moderator@lalumierechoir.rw',
+      defaultModHash,
+      '+250788334455',
+      'moderator'
+    );
+  }
+
+  // Seed initial Normal User for testing
+  const existingNormalUser = db.prepare('SELECT id FROM users WHERE email = ?').get('user@lalumierechoir.rw');
+  if (!existingNormalUser) {
+    const defaultUserHash = bcrypt.hashSync('User@2026', 10);
+    db.prepare(`
+      INSERT INTO users (id, name, email, password_hash, phone, role)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      'usr_normal_user',
+      'Grace Mutoni',
+      'user@lalumierechoir.rw',
+      defaultUserHash,
+      '+250788556677',
+      'normal_user'
     );
   }
 
@@ -571,7 +728,7 @@ Yesu ari hafi kuza kutujyana!`,
     'rehearsal'
   );
 
-  // Seed initial sample comments
+  // Seed sample comments
   const insertComm = db.prepare('INSERT INTO comments (id, song_id, user_id, content, likes_count) VALUES (?, ?, ?, ?, ?)');
   insertComm.run(
     'comm_1',
@@ -580,6 +737,152 @@ Yesu ari hafi kuza kutujyana!`,
     'Iyi ndirimbo \'Urukundo rwa Yesu\' iranyura cyane! Imana ikomeze guha umugisha La Lumiere Choir!',
     12
   );
+
+  // Seed sample events if empty
+  const eventsCount = db.prepare('SELECT COUNT(*) as count FROM events').get() as { count: number };
+  if (eventsCount.count === 0) {
+    const insertEvent = db.prepare(`
+      INSERT INTO events (id, title, description, event_date, location, image_url, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, 'published', 'usr_admin_default')
+    `);
+    insertEvent.run(
+      'evt_1',
+      'Igiterane cyo kuramya no guhimbaza (Praise & Worship Night)',
+      'Ijoro ridasanzwe ryo kuramya Imana no guhimbaza hamwe na La Lumiere Choir n\'andi matsinda y\'indirimbo ku rusengero rwa ADEPR Nyanza.',
+      '2026-10-15 17:00:00',
+      'ADEPR Nyanza Sanctuary, Kicukiro',
+      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80'
+    );
+    insertEvent.run(
+      'evt_2',
+      'Imyitozo rusange yo Kwitegura Pasika (Easter Rehearsal)',
+      'Imyitozo y\'abaririmbyi bose ba La Lumiere Choir yo gutunganya indirimbo nshya zizakoreshwa mu minsi mikuru.',
+      '2026-09-30 14:00:00',
+      'La Lumiere Music Room, ADEPR Nyanza',
+      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800&auto=format&fit=crop&q=80'
+    );
+  }
+
+  // Seed sample documents if empty
+  const docsCount = db.prepare('SELECT COUNT(*) as count FROM documents').get() as { count: number };
+  if (docsCount.count === 0) {
+    const insertDoc = db.prepare(`
+      INSERT INTO documents (id, title, description, file_url, file_size_bytes, category, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, 'published', 'usr_admin_default')
+    `);
+    insertDoc.run(
+      'doc_1',
+      'Amanota y\'Indirimbo: Urukundo rwa Yesu (Sol-fa Sheet Music)',
+      'Amanota nyakuri y\'ijwi rya mbere, irya kabiri, irya gatatu n\'irya kane (SATB) y\'indirimbo Urukundo rwa Yesu.',
+      'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      245000,
+      'sheet_music'
+    );
+    insertDoc.run(
+      'doc_2',
+      'Amabwiriza y\'Abaririmbyi ba La Lumiere (Choir Ministry Code of Conduct)',
+      'Igitabo gikubiyemo amahame, imyitwarire n\'inshingano z\'umuririmbyi wa La Lumiere Choir ADEPR Nyanza.',
+      'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      512000,
+      'rehearsal_guide'
+    );
+  }
+
+  // Seed sample content articles (news, devotional, video, notice)
+  const articlesCount = db.prepare('SELECT COUNT(*) as count FROM content_articles').get() as { count: number };
+  if (articlesCount.count === 0) {
+    const insertArt = db.prepare(`
+      INSERT INTO content_articles (id, type, title, content, media_url, published_date, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, 'published', 'usr_admin_default')
+    `);
+    insertArt.run(
+      'art_1',
+      'choir_news',
+      'La Lumiere Choir irashimira Imana ku myaka 15 y\'umurimo w\'ivugabutumwa',
+      'Urugendo rw\'uburirimbyi bwa La Lumiere Choir rwatangiye kera kuri ADEPR Nyanza. Uyu munsi turashima Imana ku mirimo ikomeye yakoreye mu mitima y\'abantu binyuze mu ndirimbo z\'umwuka.',
+      'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
+      '2026-09-10'
+    );
+    insertArt.run(
+      'art_2',
+      'devotional',
+      'Guhimbaza Imana mu mwuka no mu kuri - Ijambo ry\'Umunsi',
+      'Yohana 4:24 - Imana ni Umwuka, n\'abayisenga bakwiriye kuyisengera mu mwuka no mu kuri. Indirimbo y\'umunyamwuka iratandukana n\'umuziki usanzwe kuko ifite imbaraga zo kubohora imitima.',
+      '',
+      '2026-09-18'
+    );
+    insertArt.run(
+      'art_3',
+      'video',
+      'Videwo: Amashusho y\'indirimbo \'Urukundo rwa Yesu\' (Official Video)',
+      'Reba amashusho yose y\'indirimbo yashyizwe hanze ku rubuga rwa YouTube rwa La Lumiere Choir Rwanda.',
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      '2026-09-01'
+    );
+    insertArt.run(
+      'art_4',
+      'notice',
+      'Icyitonderwa ku bagize korali: Isaha yo kugera ku rusengero ku cyumweru',
+      'Abaririmbyi bose basabwe kugera kuri ADEPR Nyanza bitarenze saa mbili n\'igice (08:30 AM) zo mu gitondo kugira ngo basengere hamwe mbere y\'amateraniro.',
+      '',
+      '2026-09-19'
+    );
+  }
+
+  // Seed sample images if empty
+  const imagesCount = db.prepare('SELECT COUNT(*) as count FROM images').get() as { count: number };
+  if (imagesCount.count === 0) {
+    const insertImg = db.prepare(`
+      INSERT INTO images (id, title, category, file_url, file_size_bytes, mime_type, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, 'usr_admin_default')
+    `);
+    insertImg.run(
+      'img_1',
+      'Choir Ministry Banner',
+      'choir_photo',
+      'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&auto=format&fit=crop&q=80',
+      420000,
+      'image/jpeg'
+    );
+    insertImg.run(
+      'img_2',
+      'Sanctuary Worship Event Cover',
+      'event_image',
+      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&auto=format&fit=crop&q=80',
+      380000,
+      'image/jpeg'
+    );
+  }
+}
+
+// Activity Logging helper
+export function logActivity(
+  userId: string | undefined,
+  userName: string | undefined,
+  userRole: string | undefined,
+  action: string,
+  resource: string,
+  resourceId?: string,
+  details?: string
+) {
+  try {
+    const id = 'act_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+    db.prepare(`
+      INSERT INTO activity_logs (id, user_id, user_name, user_role, action, resource, resource_id, details)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      userId || 'system',
+      userName || 'System Admin',
+      userRole || 'super_admin',
+      action,
+      resource,
+      resourceId || null,
+      details || null
+    );
+  } catch (err) {
+    console.error('Failed to log activity:', err);
+  }
 }
 
 // Call database initializer

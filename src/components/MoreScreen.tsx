@@ -175,6 +175,17 @@ export const MoreScreen: React.FC<MoreScreenProps> = ({
           <span>{choirInfo.contact_email}</span>
         </div>
       </div>
+
+      {/* Admin Portal Gateway Link */}
+      <div className="pt-1 pb-4 text-center">
+        <button
+          onClick={() => onNavigateToTab('admin')}
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 hover:text-blue-950 transition-colors py-1.5 px-3 rounded-xl hover:bg-slate-100 cursor-pointer"
+        >
+          <Shield className="w-3.5 h-3.5 text-slate-400" />
+          <span>Ubuyobozi bwa Korali (Admin Portal)</span>
+        </button>
+      </div>
     </div>
   );
 };

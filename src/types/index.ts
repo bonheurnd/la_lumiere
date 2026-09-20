@@ -1,11 +1,21 @@
+export type UserRole = 'super_admin' | 'admin' | 'content_admin' | 'moderator' | 'normal_user' | 'member' | 'choir_member' | 'supporter';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   phone?: string;
-  role: 'admin' | 'choir_member' | 'supporter';
+  role: UserRole;
   avatar_url?: string;
+  is_disabled?: number | boolean;
+  comments_count?: number;
+  donations_count?: number;
   created_at?: string;
+}
+
+export interface UserProfile extends User {
+  full_name?: string;
+  choir_voice?: string;
 }
 
 export interface SongCategory {
@@ -25,9 +35,12 @@ export interface AudioTrack {
   audio_url: string;
   duration_seconds: number;
   file_size_bytes?: number;
+  mime_type?: string;
+  original_filename?: string;
   plays_count?: number;
   created_at?: string;
   song_title?: string;
+  song_release_status?: string;
   composer?: string;
   cover_image_url?: string;
 }
@@ -40,6 +53,9 @@ export interface Song {
   category_id?: string;
   category_name?: string;
   release_status: 'released' | 'unreleased';
+  status?: 'draft' | 'published';
+  is_deleted?: number;
+  deleted_at?: string;
   release_date?: string;
   description?: string;
   cover_image_url?: string;
@@ -54,13 +70,19 @@ export interface Song {
   language?: string;
   audio_tracks?: AudioTrack[];
   is_locked?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
 }
 
 export interface Comment {
   id: string;
   song_id: string;
+  song_title?: string;
   user_id: string;
   user_name: string;
+  user_email?: string;
+  user_disabled?: boolean;
   user_role: string;
   avatar_url?: string;
   parent_id?: string | null;
@@ -70,6 +92,95 @@ export interface Comment {
   reports_count: number;
   created_at: string;
   replies?: Comment[];
+}
+
+export interface EventItem {
+  id: string;
+  title: string;
+  description?: string;
+  event_date: string;
+  location?: string;
+  image_url?: string;
+  status: 'draft' | 'published';
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DocumentItem {
+  id: string;
+  title: string;
+  doc_type: 'sheet_music' | 'solfa_guide' | 'rehearsal_schedule' | 'general' | string;
+  file_url: string;
+  song_id?: string;
+  song_title?: string;
+  file_size_bytes?: number;
+  mime_type?: string;
+  original_filename?: string;
+  status: 'draft' | 'published';
+  created_at?: string;
+}
+
+export interface ContentArticle {
+  id: string;
+  title: string;
+  type: 'news' | 'devotional' | 'video' | 'notice';
+  content: string;
+  summary?: string;
+  cover_image_url?: string;
+  video_url?: string;
+  status: 'draft' | 'published';
+  published_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ImageItem {
+  id: string;
+  title: string;
+  url: string;
+  category: 'song_cover' | 'choir_photo' | 'event_image' | 'logo' | 'general';
+  file_size_bytes?: number;
+  mime_type?: string;
+  original_filename?: string;
+  created_at?: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  user_id?: string;
+  user_name?: string;
+  user_role?: string;
+  action: string;
+  resource?: string;
+  resource_type?: string;
+  target_id?: string;
+  details?: string;
+  ip_address?: string;
+  created_at: string;
+}
+
+export interface AdminMetrics {
+  totalUsers: number;
+  adminUsers: number;
+  disabledUsers: number;
+  totalSongs: number;
+  publishedSongs: number;
+  draftSongs: number;
+  releasedSongs: number;
+  unreleasedSongs: number;
+  deletedSongs: number;
+  totalAudio: number;
+  totalImages: number;
+  totalComments: number;
+  pendingComments: number;
+  totalAnnouncements: number;
+  totalEvents: number;
+  totalDocuments: number;
+  totalArticles: number;
+  successfulDonationsCount: number;
+  totalDonationsAmount: number;
+  pendingDonationsCount: number;
+  recentActivity: ActivityLog[];
 }
 
 export interface PaymentTransaction {
@@ -106,6 +217,8 @@ export interface Announcement {
   title: string;
   content: string;
   category: string;
+  image_url?: string;
+  status?: 'draft' | 'published';
   is_active: number | boolean;
   created_at: string;
 }
