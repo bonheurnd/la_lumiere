@@ -92,7 +92,8 @@ export function isUserModerator(role?: string): boolean {
 
 export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   requireAuth(req, res, () => {
-    if (!isUserAdmin(req.user?.role)) {
+    // Admin-only routes must not be accessible to content admins or moderators.
+    if (!isUserSuperAdmin(req.user?.role)) {
       return res.status(403).json({ error: 'Uburenganzira bw\'umuyobozi burenze ubwawe (Admin privileges required)' });
     }
     next();
